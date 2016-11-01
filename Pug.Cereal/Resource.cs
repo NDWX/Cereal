@@ -68,14 +68,6 @@ namespace Pug.Cereal
 
 			object shakeSync = new object();
 
-			//void Shake(Action partyAccept)
-			//{
-			//	lock (shakeSync)
-			//	{
-			//		partyAccept();
-			//	}
-			//}
-
 			GrainComplex Shake(GrainComplex grain)
 			{
 				lock(shakeSync)
@@ -238,8 +230,6 @@ namespace Pug.Cereal
 			public LockWait wait;
 		}
 
-		//ManualResetEventSlim _lock;
-
 		object requestSync = new object();
 		object shakeSync = new object();
 
@@ -261,7 +251,6 @@ namespace Pug.Cereal
 		{
 			this.Identifier = identifier;
 			this.SyncLock = syncLock;
-			//_lock = new ManualResetEventSlim(false);
 
 			requests = new Queue<LockRequest>();
 
@@ -278,61 +267,6 @@ namespace Pug.Cereal
 		{
 			get;
 			private set;
-		}
-
-
-		//protected void Exclusively(Action action)
-		//{
-		//	lock (shakeSync)
-		//	{
-		//		action();
-		//	}
-		//}
-
-		protected void RequestOrRelease(RequestReleaseContext context)
-		{
-			if( context.grain.Equals(default(Grain)) )
-			{ // if this was a 'Request' call
-
-				if (CurrentLock != null && context.subject == CurrentLock.Grain.Subject)
-				{ // if request comes from the same subject, offer the same Grain
-
-					context.wait.Offer(this.CurrentLock);
-				}
-				else // otherwise create a new lock-request
-				{
-					LockRequest request = new LockRequest(context.subject, context.requestedDuration, context.wait);
-
-					if (CurrentLock == null || CurrentLock.HasExpired(0))
-					{ // if resource is not currently locked, create and offer Grain to self
-
-						GrainComplex grain = CreateGrain(request.Subject, request.Duration);
-						request.Wait.Offer(grain);
-						CurrentLock = grain;
-					}
-					else
-					{ // otherwise queue lock-request
-
-						requests.Enqueue(request);
-					}
-				}
-			}
-			else // if this was a 'Release' call
-			{
-				if (this.CurrentLock != null && this.CurrentLock.Grain.Equals(context.grain))
-				{ // if Grain belongs to current subject, release lock and offer grain to next in queue
-
-					CurrentLock = null;
-
-					// Create and offer new Grain to next thread in queue
-					if (context.releaseReason == ReleaseReason.Expired)
-						ProcessNextRequest();
-					else
-						Task.Run(() => ProcessNextRequest());
-				}
-
-				LastAccessTimestamp = DateTime.Now;
-			}
 		}
 
 		GrainComplex CreateGrain(string subject, int duration)
@@ -375,7 +309,19 @@ namespace Pug.Cereal
 
 		public void Release(Grain grain, ReleaseReason reason)
 		{
-			RequestOrRelease(new RequestReleaseContext() { grain = grain, releaseReason = reason });
+			if (this.CurrentLock != null && this.CurrentLock.Grain.Equals(grain))
+			{ // if Grain belongs to current subject, release lock and offer grain to next in queue
+
+				CurrentLock = null;
+
+				// Create and offer new Grain to next thread in queue
+				if (reason == ReleaseReason.Expired)
+					ProcessNextRequest();
+				else
+					Task.Run(() => ProcessNextRequest());
+			}
+
+			LastAccessTimestamp = DateTime.Now;
 		}
 
 		public void RequestLock(string subject, int requestedDuration, LockWait wait)
@@ -383,7 +329,28 @@ namespace Pug.Cereal
 			// ensure lock-request is processed one at a time
 			lock (requestSync)
 			{
-				RequestOrRelease(new RequestReleaseContext() { grain = default(Grain), subject = subject, requestedDuration = requestedDuration, wait = wait });
+				if (CurrentLock != null && subject == CurrentLock.Grain.Subject)
+				{ // if request comes from the same subject, offer the same Grain
+
+					wait.Offer(this.CurrentLock);
+				}
+				else // otherwise create a new lock-request
+				{
+					LockRequest request = new LockRequest(subject, requestedDuration, wait);
+
+					if (CurrentLock == null || CurrentLock.HasExpired(0))
+					{ // if resource is not currently locked, create and offer Grain to self
+
+						GrainComplex grain = CreateGrain(request.Subject, request.Duration);
+						request.Wait.Offer(grain);
+						CurrentLock = grain;
+					}
+					else
+					{ // otherwise queue lock-request
+
+						requests.Enqueue(request);
+					}
+				}
 			}
 
 			LastAccessTimestamp = DateTime.Now;
