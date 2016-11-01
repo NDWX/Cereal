@@ -7,8 +7,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pug.Cereal", "Pug.Cereal\Pu
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{C20EA7E2-C322-4358-9D6A-B62AF323F390}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleTester", "ConsoleTester\ConsoleTester.csproj", "{41649157-F527-483D-B4D4-0FCA35A3147A}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pug.Cereal.Common", "Pug.Cereal.Common\Pug.Cereal.Common.csproj", "{E2F7DFBB-ED33-42E6-998E-EB65FF91455C}"
 EndProject
 Global
@@ -21,10 +19,6 @@ Global
 		{CAAC4E8D-B58B-4131-A69E-90A8BEE34DF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CAAC4E8D-B58B-4131-A69E-90A8BEE34DF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CAAC4E8D-B58B-4131-A69E-90A8BEE34DF4}.Release|Any CPU.Build.0 = Release|Any CPU
-		{41649157-F527-483D-B4D4-0FCA35A3147A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{41649157-F527-483D-B4D4-0FCA35A3147A}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{41649157-F527-483D-B4D4-0FCA35A3147A}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{41649157-F527-483D-B4D4-0FCA35A3147A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{E2F7DFBB-ED33-42E6-998E-EB65FF91455C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E2F7DFBB-ED33-42E6-998E-EB65FF91455C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E2F7DFBB-ED33-42E6-998E-EB65FF91455C}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -32,8 +26,5 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{41649157-F527-483D-B4D4-0FCA35A3147A} = {C20EA7E2-C322-4358-9D6A-B62AF323F390}
 	EndGlobalSection
 EndGlobal
