@@ -38,16 +38,6 @@ namespace Pug.Cereal
 			return new Mutex(false, string.Format(lockNameTemplate, identifier));
 		}
 
-		//Grain createGrain(string resource, string subject, TimeSpan desiredDuration)
-		//{
-		//	Grain grain = null;
-
-		//	resources[resource] = grain;
-		//	grains[grain.Identifier] = grain;
-
-		//	return grain;
-		//}
-
 		private void onGrainReturned(object sender, string identifier)
 		{
 			// remove grain from index when lock is released or expired

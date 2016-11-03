@@ -47,11 +47,11 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Pug.Cereal.Common\Pug.Cereal.Common.csproj">
+    <ProjectReference Include="..\..\Pug.Cereal.Common\Pug.Cereal.Common.csproj">
       <Project>{e2f7dfbb-ed33-42e6-998e-eb65ff91455c}</Project>
       <Name>Pug.Cereal.Common</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Pug.Cereal\Pug.Cereal.csproj">
+    <ProjectReference Include="..\..\Pug.Cereal\Pug.Cereal.csproj">
       <Project>{caac4e8d-b58b-4131-a69e-90a8bee34df4}</Project>
       <Name>Pug.Cereal</Name>
     </ProjectReference>

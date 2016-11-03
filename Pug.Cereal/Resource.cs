@@ -133,26 +133,6 @@ namespace Pug.Cereal
 			{
 				GrainComplex grain = Shake(null);
 
-				//Shake(
-				//	() =>
-				//	{
-				//		if (this.grain != null )
-				//		{
-				//			Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: {2} accepting grain for {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, this.grain.Grain.Subject, this.grain.Grain.Resource), "LockWait");
-
-				//			grain = this.grain;
-							
-				//			Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: {2} accepted grain for {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Grain.Subject, grain.Grain.Resource), "LockWait");
-				//		}
-				//		else
-				//		{
-				//			Expired = true;
-
-				//			Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: received no grain offer.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId), "LockWait");
-				//		}
-				//	}
-				//);
-
 				return grain;
 			}
 
@@ -164,8 +144,6 @@ namespace Pug.Cereal
 				bool lockOffered = wait.WaitOne(timeout);
 				
 				Trace.WriteLineIf(traceSwitch.TraceVerbose && !lockOffered, string.Format("{0} {1}: Wait for grain offer timed out, attempting to accept offer.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId), "LockWait");
-
-				//Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: attempting to accept offer.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId), "LockWait");
 				
 				// try accepting lock offer
 				return TryAccept();
@@ -219,15 +197,6 @@ namespace Pug.Cereal
 			{
 				wait.Dispose();
 			}
-		}
-
-		protected struct RequestReleaseContext
-		{
-			public Grain grain;
-			public ReleaseReason releaseReason;
-			public string subject;
-			public int requestedDuration;
-			public LockWait wait;
 		}
 
 		object requestSync = new object();
