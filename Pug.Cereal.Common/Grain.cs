@@ -5,13 +5,12 @@ namespace Pug.Cereal
 {
 	public struct Grain : IEquatable<Grain>
 	{
-		public Grain(string identifier, string subject, string resource, int duration)
+		public Grain(string identifier, string subject, string resource)
 		{
 			this.Timestamp = DateTime.Now;
 			this.Identifier = identifier;
 			this.Subject = subject;
 			this.Resource = resource;
-			this.Duration = duration;
 		}
 
 		public string Identifier
@@ -38,12 +37,6 @@ namespace Pug.Cereal
 			private set;
 		}
 
-		public int Duration
-		{
-			get;
-			private set;
-		}
-
 		public override string ToString()
 		{
 			return "Grain:" + Identifier;
@@ -61,7 +54,7 @@ namespace Pug.Cereal
 
 		public bool Equals(Grain other)
 		{
-			return Identifier == other.Identifier && Subject == other.Subject && Timestamp == other.Timestamp && Duration == other.Duration;
+			return Identifier == other.Identifier && Subject == other.Subject && Timestamp == other.Timestamp;
 		}
 
 		//static Grain empty = new Grain(string.Empty, string.Empty, string.Empty, 0);
@@ -70,7 +63,7 @@ namespace Pug.Cereal
 		{
 			get
 			{
-				return new Grain(string.Empty, string.Empty, string.Empty, 0);
+				return new Grain(string.Empty, string.Empty, string.Empty);
 			}
 		}
 

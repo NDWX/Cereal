@@ -59,7 +59,7 @@ namespace Pug.Cereal
 		/// <param name="desiredDuration">Maximum duration for which the resource will be locked</param>
 		/// <param name="timeout">The maximum amount of wait time before request should be abandoned</param>
 		/// <returns></returns>
-		public Grain Lock(string subject, string resource, int desiredDuration, int timeout = 0)
+		public Grain Lock(string subject, string resource, int timeout = 0)
 		{
 			accessList[resource] = DateTime.Now;
 
@@ -93,14 +93,8 @@ namespace Pug.Cereal
 					resourceLock.ReleaseMutex();
 				}
 
-				// create wait object, which is point of interaction between lock-request and lock-release
-				Resource.LockWait wait = new Resource.LockWait(this.identifier);
-				_resource.RequestLock(subject, desiredDuration, wait);
-
 				// wait for lock to be granted
-				GrainComplex _lock = wait.Wait(timeout);
-
-				wait.Dispose();
+				GrainComplex _lock = _resource.RequestLock(subject, timeout);
 
 				// subscribe to lock-release and index resource-lock
 				if (_lock != null)
@@ -109,6 +103,7 @@ namespace Pug.Cereal
 
 					grain = _lock.Grain;
 					grains[grain.Identifier] = _lock;
+
 				}
 			}
 

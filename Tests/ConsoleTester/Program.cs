@@ -59,7 +59,7 @@ namespace ConsoleTester
 				{
 					Console.WriteLine("{0} a", subject);
 
-					Grain grain = cereal.Lock(subject, resource, duration, -1);
+					Grain grain = cereal.Lock(subject, resource, -1);
 
 					Console.WriteLine("{0} b", subject);
 

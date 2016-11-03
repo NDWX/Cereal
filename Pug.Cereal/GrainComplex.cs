@@ -7,37 +7,12 @@ namespace Pug.Cereal
 	internal class GrainComplex
 	{
 		Resource resource;
-		object releaseSync = new object();
-		CancellationTokenSource expirationNotificationToken;
+		object releaseSync = new object();		
 
-		//Action<string> onFinished;
-
-		public GrainComplex(Grain grain, Resource resource /*, Action<string> onFinished = null*/)
+		public GrainComplex(Grain grain, Resource resource)
 		{
 			this.Grain = grain;
 			this.resource = resource;
-
-			expirationNotificationToken = new CancellationTokenSource();
-
-			Task.Run(
-				() => { 
-					Thread.Sleep(grain.Duration - (int)Math.Ceiling(DateTime.Now.Subtract(grain.Timestamp).TotalMilliseconds));
-				
-					try
-					{
-						if (!expirationNotificationToken.Token.IsCancellationRequested)
-							Return(Resource.ReleaseReason.Expired);
-					}
-					catch(ObjectDisposedException)
-					{
-					}
-				},
-				expirationNotificationToken.Token
-			);
-
-			//this.onFinished = onFinished;
-
-			//ThreadPool.QueueUserWorkItem(new WaitCallback((o) => { Thread.Sleep(grain.Duration - (DateTime.Now.Subtract(grain.Timestamp))); Release(Resource.ReleaseReason.Expired); }));
 		}
 
 		public Grain Grain
@@ -48,32 +23,15 @@ namespace Pug.Cereal
 
 		public event EventHandler<string> Returned;
 
-		void Return(Resource.ReleaseReason reason)
+		public void Return()
 		{
 			lock (releaseSync)
 			{
-				resource.Release(Grain, reason);
+				resource.Release(Grain);
 
 				if (Returned != null)
-					if (reason == Resource.ReleaseReason.Expired)
-						Returned(this, Grain.Identifier);
-					else
-						Task.Run(() => Returned(this, Grain.Identifier));
+					Returned(this, Grain.Identifier);
 			}
-		}
-
-		public bool HasExpired(int minimumPeriod)
-		{
-			return Grain.HasExpired(minimumPeriod);
-		}
-
-		public void Return()
-		{
-			expirationNotificationToken.Cancel();
-
-			Return(Resource.ReleaseReason.Released);
-
-			expirationNotificationToken.Dispose();
 		}
 	}
 }
