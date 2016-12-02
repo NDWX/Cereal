@@ -12,6 +12,8 @@ namespace Pug.Cereal
 	public class Cereal : ICereal
 	{
 		string identifier;
+		TraceSwitch traceSwitch;
+
 		Dictionary<string, Resource> resources;
 		Dictionary<string, GrainComplex> grains;
 
@@ -25,6 +27,9 @@ namespace Pug.Cereal
 		public Cereal(string system, int defaultWaitTimeout)
 		{
 			this.identifier = system;
+
+			traceSwitch = new TraceSwitch(string.Format("Pug.Cereal.{1}", DateTime.Now.ToString("o"), system), string.Format("Pug Cereal for {0}", system));
+
 			accessList = new Dictionary<string, DateTime>();
 			resources = new Dictionary<string, Resource>();
 			grains = new Dictionary<string, GrainComplex>();
@@ -66,12 +71,17 @@ namespace Pug.Cereal
 			Grain grain = Grain.Empty;
 			Resource _resource = null;
 
+#if TRACE
+			Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Obtaining internal lock reference for {2} on behalf of {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+#endif
 			// obtain reference to a lock-resource internal lock
 			Mutex resourceLock = getResourceLock(resource);
 
 			if (timeout == 0)
-				timeout = defaultWaitTimeout;
-
+				timeout = defaultWaitTimeout;  
+#if TRACE
+			Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Waiting on internal lock for {2} on behalf of {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+#endif
 			// obtain internal lock on a lock-resource to ensure it is not deleted while being locked
 			bool lockAcquired = resourceLock.WaitOne(defaultWaitTimeout);
 
@@ -80,6 +90,9 @@ namespace Pug.Cereal
 				// retrieve reference to lock-resource from index if exists
 				if( resources.ContainsKey(resource) )
 				{
+#if TRACE
+					Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Found existing resource reference for {2}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+#endif
 					_resource = resources[resource];
 
 					resourceLock.ReleaseMutex();
@@ -87,6 +100,9 @@ namespace Pug.Cereal
 				}
 				else // create lock-resource
 				{
+#if TRACE
+					Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Creating resource reference for {2}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+#endif
 					_resource = new Resource(resource, resourceLock);
 					resources[resource] = _resource;
 
@@ -99,13 +115,28 @@ namespace Pug.Cereal
 				// subscribe to lock-release and index resource-lock
 				if (_lock != null)
 				{
+#if TRACE
+					Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Obtained lock for {2} on behalf of {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+#endif
 					_lock.Returned += onGrainReturned;
 
 					grain = _lock.Grain;
 					grains[grain.Identifier] = _lock;
 
 				}
+#if TRACE
+				else
+				{
+					Trace.WriteLineIf(traceSwitch.TraceWarning, string.Format("{0} {1}: Failed obtaining lock for {2} on behalf of {3}, probably due to timeout.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+				}
+#endif
 			}
+#if TRACE
+			else 
+			{
+				Trace.WriteLineIf(traceSwitch.TraceWarning, string.Format("{0} {1}: Internal wait for {2} on behalf of {3} timed-out.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+			}
+#endif
 
 			return grain;
 		}
@@ -116,15 +147,27 @@ namespace Pug.Cereal
 		/// <param name="grain">Object containing information regarding the lock obtained on a resource</param>
 		public void Release(Grain grain)
 		{
+#if TRACE
+			Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: Releasing {2} locked by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
+#endif
+
 			if (grains.ContainsKey(grain.Identifier))
 			{
 				GrainComplex _grain = null;
 				
 				if(  grains.TryGetValue(grain.Identifier, out _grain) )
 					_grain.Return();
-
+#if TRACE
+				Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: {2} released by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
+#endif
 				accessList[grain.Resource] = DateTime.Now;
 			}
+#if TRACE
+			else
+			{
+				Trace.WriteLineIf(traceSwitch.TraceWarning, string.Format("{0} {1}: {2} was not locked by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
+			}
+#endif
 		}
 
 

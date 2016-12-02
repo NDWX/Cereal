@@ -89,7 +89,11 @@ namespace ConsoleTester
 										{
 											Console.WriteLine("Thread 1 started.");
 
+											DateTime start = DateTime.Now;
 											Grain lockA = getLock("Thread1", "A", 4000);
+
+											DateTime finish = DateTime.Now;
+											TimeSpan elpsed = finish.Subtract(start);
 
 											Thread.Sleep(2000);
 

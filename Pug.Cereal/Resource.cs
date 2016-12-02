@@ -8,8 +8,6 @@ namespace Pug.Cereal
 {
 	internal class Resource
 	{
-		object requestSync = new object();
-		
 		protected GrainComplex CurrentLock
 		{
 			get;
@@ -42,7 +40,7 @@ namespace Pug.Cereal
 			private set;
 		}
 
-		EventWaitHandle waitHandle = new EventWaitHandle(false, EventResetMode.ManualReset);
+		EventWaitHandle waitHandle = new EventWaitHandle(true, EventResetMode.ManualReset);
 
 		GrainComplex CreateGrain(string subject)
 		{
@@ -65,24 +63,18 @@ namespace Pug.Cereal
 		public GrainComplex RequestLock(string subject, int timeout)
 		{
 			GrainComplex @lock = null;
-
-			// ensure lock-request is processed one at a time
-			lock (requestSync)
+			
+			if (CurrentLock != null && subject == CurrentLock.Grain.Subject)
 			{
-				if (CurrentLock != null && subject == CurrentLock.Grain.Subject)
-				{
-					@lock = CurrentLock;
-				}
-				else
-				{
-					if( waitHandle.WaitOne(timeout) )
-					{
-						@lock = CreateGrain(subject);
-						CurrentLock = @lock;
+				@lock = CurrentLock;
+			}
 
-						waitHandle.Reset();
-					}
-				}
+			if (@lock == null && waitHandle.WaitOne(timeout))
+			{
+				@lock = CreateGrain(subject);
+				CurrentLock = @lock;
+
+				waitHandle.Reset();
 			}
 
 			LastAccessTimestamp = DateTime.Now;
