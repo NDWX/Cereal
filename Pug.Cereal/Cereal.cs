@@ -13,47 +13,24 @@ namespace Pug.Cereal
 	{
 		string identifier;
 		TraceSwitch traceSwitch;
-
-		Dictionary<string, Resource> resources;
-		Dictionary<string, GrainComplex> grains;
-
-		string lockNameTemplate;
+		
+		Dictionary<string, IGrain> grains;
 
 		int defaultWaitTimeout = 500;
 
 		object trimSync = new object();
-		Dictionary<string, DateTime> accessList;
+		Dictionary<string, IGrain> resourceLocks;
 
 		public Cereal(string system, int defaultWaitTimeout)
 		{
 			this.identifier = system;
 
 			traceSwitch = new TraceSwitch(string.Format("Pug.Cereal.{1}", DateTime.Now.ToString("o"), system), string.Format("Pug Cereal for {0}", system));
-
-			accessList = new Dictionary<string, DateTime>();
-			resources = new Dictionary<string, Resource>();
-			grains = new Dictionary<string, GrainComplex>();
-
-			lockNameTemplate = "Pug.Cereal:" + system + ".{0}";
+			
+			grains = new Dictionary<string, IGrain>();
+			resourceLocks = new Dictionary<string, IGrain>();
+			
 			this.defaultWaitTimeout = defaultWaitTimeout;
-		}
-
-		Mutex getResourceLock(string identifier)
-		{
-			return new Mutex(false, string.Format(lockNameTemplate, identifier));
-		}
-
-		private void onGrainReturned(object sender, string identifier)
-		{
-			// remove grain from index when lock is released or expired
-			try
-			{
-				grains.Remove(identifier);
-			}
-			finally
-			{
-
-			}
 		}
 
 		/// <summary>
@@ -61,82 +38,47 @@ namespace Pug.Cereal
 		/// </summary>
 		/// <param name="subject">Subject requesting the lock</param>
 		/// <param name="resource">Identifier of the resource to lock</param>
-		/// <param name="desiredDuration">Maximum duration for which the resource will be locked</param>
 		/// <param name="timeout">The maximum amount of wait time before request should be abandoned</param>
 		/// <returns></returns>
-		public Grain Lock(string subject, string resource, int timeout = 0)
+		public IGrain Lock(string subject, string resource, int timeout = 0)
 		{
-			accessList[resource] = DateTime.Now;
+			IGrain grain = null;
 
-			Grain grain = Grain.Empty;
-			Resource _resource = null;
-
+			if ( resourceLocks.ContainsKey(resource) && resourceLocks.TryGetValue(resource, out grain) && grain.Subject == subject)
+			{
 #if TRACE
-			Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Obtaining internal lock reference for {2} on behalf of {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+				Trace.WriteLineIf(traceSwitch.TraceWarning, string.Format("{0} {1}: Found existing lock for {2} held by subject {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
 #endif
-			// obtain reference to a lock-resource internal lock
-			Mutex resourceLock = getResourceLock(resource);
+				return grain;
+			}			
+#if TRACE
+			Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Obtaining lock for {2} on behalf of {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+#endif
+			EventWaitHandle waitHandle = new EventWaitHandle(true, EventResetMode.AutoReset, string.Format("{0}/{1}", identifier, resource));
 
 			if (timeout == 0)
-				timeout = defaultWaitTimeout;  
-#if TRACE
-			Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Waiting on internal lock for {2} on behalf of {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
-#endif
-			// obtain internal lock on a lock-resource to ensure it is not deleted while being locked
-			bool lockAcquired = resourceLock.WaitOne(defaultWaitTimeout);
+				timeout = defaultWaitTimeout;
 
-			if( lockAcquired )
+			bool lockAcquired = waitHandle.WaitOne(timeout);
+
+			if (lockAcquired)
 			{
-				// retrieve reference to lock-resource from index if exists
-				if( resources.ContainsKey(resource) )
-				{
 #if TRACE
-					Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Found existing resource reference for {2}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+				Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Obtained lock for {2} on behalf of {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
 #endif
-					_resource = resources[resource];
-
-					resourceLock.ReleaseMutex();
-					resourceLock.Dispose();
-				}
-				else // create lock-resource
-				{
-#if TRACE
-					Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Creating resource reference for {2}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
-#endif
-					_resource = new Resource(resource, resourceLock);
-					resources[resource] = _resource;
-
-					resourceLock.ReleaseMutex();
-				}
-
-				// wait for lock to be granted
-				GrainComplex _lock = _resource.RequestLock(subject, timeout);
-
-				// subscribe to lock-release and index resource-lock
-				if (_lock != null)
-				{
-#if TRACE
-					Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Obtained lock for {2} on behalf of {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
-#endif
-					_lock.Returned += onGrainReturned;
-
-					grain = _lock.Grain;
-					grains[grain.Identifier] = _lock;
-
-				}
-#if TRACE
-				else
-				{
-					Trace.WriteLineIf(traceSwitch.TraceWarning, string.Format("{0} {1}: Failed obtaining lock for {2} on behalf of {3}, probably due to timeout.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
-				}
-#endif
+				grain = new Grain(string.Format("{0}:{1}/{2}", DateTime.Now.ToString("o"), resource, Guid.NewGuid().ToString()), subject, resource, waitHandle);
+				grains[grain.Identifier] = grain;
+				resourceLocks[resource] = grain;
 			}
-#if TRACE
-			else 
+			else
 			{
-				Trace.WriteLineIf(traceSwitch.TraceWarning, string.Format("{0} {1}: Internal wait for {2} on behalf of {3} timed-out.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
-			}
+#if TRACE
+				Trace.WriteLineIf(traceSwitch.TraceWarning, string.Format("{0} {1}: Failed obtaining lock for {2} on behalf of {3}, probably due to timeout.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
 #endif
+				waitHandle.Dispose();
+
+				grain = Grain.Empty;
+			}
 
 			return grain;
 		}
@@ -145,22 +87,35 @@ namespace Pug.Cereal
 		/// Release resource lock as specified in the <paramref name="grain"/> object.
 		/// </summary>
 		/// <param name="grain">Object containing information regarding the lock obtained on a resource</param>
-		public void Release(Grain grain)
+		public void Release(IGrain grain)
 		{
 #if TRACE
-			Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: Releasing {2} locked by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
+			Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: Trying to release {2} locked by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
 #endif
 
 			if (grains.ContainsKey(grain.Identifier))
 			{
-				GrainComplex _grain = null;
+				IGrain _grain = null;
 				
 				if(  grains.TryGetValue(grain.Identifier, out _grain) )
-					_grain.Return();
+				{
+					resourceLocks.Remove(grain.Resource);
+					grains.Remove(_grain.Identifier);
+
+					EventWaitHandle waitHandle = ((Grain)_grain).WaitHandle;
+
+					waitHandle.Set();
+					waitHandle.Dispose();
 #if TRACE
-				Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: {2} released by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
+					Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: {2} released by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
 #endif
-				accessList[grain.Resource] = DateTime.Now;
+				}
+				else
+				{
+#if TRACE
+					Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: Unable to find grain for {2} as specified by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
+#endif
+				}
 			}
 #if TRACE
 			else
@@ -178,62 +133,6 @@ namespace Pug.Cereal
 		{
 			lock (trimSync)
 			{
-				/// Remove 'stale' items from list without impeding lock/release requests, while accepting possible time taken for removals.
-				/// This is done by putting together a list of removal candidates which is then traversed for actual confirm-and-remove
-				
-				TimeSpan threshold = new TimeSpan(0, 0, 25);
-
-				List<Resource> removalList = new List<Resource>();
-
-				ParallelOptions parallelOptions = new ParallelOptions();
-				parallelOptions.MaxDegreeOfParallelism = accessList.Count < 20? 1:(accessList.Count / 20);
-
-				// Compile a list of candidates
-				ParallelLoopResult loopResult = Parallel.ForEach<string>(
-					accessList.Keys, parallelOptions, key => {
-						// no read lock is necessary here as this is the only block of code where removal of item from list is done and newly added item is irrelevant.
-
-						DateTime lastAccessTimestamp;
-
-						if (accessList.TryGetValue(key, out lastAccessTimestamp))
-							if (DateTime.Now.Subtract(lastAccessTimestamp) > threshold)
-								removalList.Add(resources[key]);
-					}
-				);
-
-				//parallelOptions.CancellationToken.WaitHandle.WaitOne();
-
-				Resource item;
-
-				// Traverse candidate list to confirm and remove
-				for( int idx = 0; idx < removalList.Count; idx++ )
-				{
-					item = removalList[idx];
-
-					Mutex itemLock = item.SyncLock;
-
-					// lock item to prevent lock/release 
-					bool itemLocked = itemLock.WaitOne();
-
-					if (DateTime.Now.Subtract(item.LastAccessTimestamp) > threshold)
-					{
-						try
-						{
-							accessList.Remove(item.Identifier);
-							resources.Remove(item.Identifier);
-						}
-						finally
-						{
-							itemLock.ReleaseMutex();
-							itemLock.Dispose();
-						}
-					}
-				}
-
-				int minThreads = (int)Math.Ceiling(grains.Count * 1.5);
-				int maxThreads = minThreads * 2;
-                ThreadPool.SetMaxThreads(maxThreads, maxThreads);
-				//ThreadPool.SetMinThreads(minThreads, minThreads);
 			}
 		}
 	}

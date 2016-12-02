@@ -4,8 +4,8 @@ namespace Pug.Cereal
 {
 	public interface ICereal
 	{
-		Grain Lock(string subject, string resource, int timeout = 0);
+		IGrain Lock(string subject, string resource, int timeout = 0);
 
-		void Release(Grain grain);
+		void Release(IGrain grain);
 	}
 }

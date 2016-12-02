@@ -39,10 +39,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Cereal.cs" />
-    <Compile Include="GrainComplex.cs" />
-    <Compile Include="GrainExtensions.cs" />
+    <Compile Include="Grain.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Resource.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Pug.Cereal.Common\Pug.Cereal.Common.csproj">

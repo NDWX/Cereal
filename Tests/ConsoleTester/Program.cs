@@ -17,49 +17,49 @@ namespace ConsoleTester
 	{
 		static void Main(string[] args)
 		{
-			ECDsaCng cng = new ECDsaCng(256);
-			RandomNumberGenerator rng = RandomNumberGenerator.Create();
-			cng.HashAlgorithm = CngAlgorithm.Sha256;
+			//ECDsaCng cng = new ECDsaCng(256);
+			//RandomNumberGenerator rng = RandomNumberGenerator.Create();
+			//cng.HashAlgorithm = CngAlgorithm.Sha256;
 
-			int dataLength = 1024; // 256 * 256;
+			//int dataLength = 1024; // 256 * 256;
 
-			byte[] data = new byte[dataLength];
-			rng.GetBytes(data);
+			//byte[] data = new byte[dataLength];
+			//rng.GetBytes(data);
 
-			DateTime begining, middle, end;
+			//DateTime begining, middle, end;
 
-			begining = DateTime.Now;
-			byte[] signature = cng.SignData(data);
+			//begining = DateTime.Now;
+			//byte[] signature = cng.SignData(data);
 
-			middle = DateTime.Now;
+			//middle = DateTime.Now;
 
-			bool authentic = cng.VerifyData(data, signature);
+			//bool authentic = cng.VerifyData(data, signature);
 
-			end = DateTime.Now;
+			//end = DateTime.Now;
 
-			Debug.WriteLine(middle.Subtract(begining).TotalMilliseconds);
-			Debug.WriteLine(end.Subtract(middle).TotalMilliseconds);
+			//Debug.WriteLine(middle.Subtract(begining).TotalMilliseconds);
+			//Debug.WriteLine(end.Subtract(middle).TotalMilliseconds);
 
-			MACTripleDES tripleDes = new MACTripleDES();
+			//MACTripleDES tripleDes = new MACTripleDES();
 
-			begining = DateTime.Now;
+			//begining = DateTime.Now;
 
-			byte[] hash = tripleDes.ComputeHash(data);
+			//byte[] hash = tripleDes.ComputeHash(data);
 
-			middle = DateTime.Now;
+			//middle = DateTime.Now;
 
-			Debug.WriteLine(middle.Subtract(begining).TotalMilliseconds);
+			//Debug.WriteLine(middle.Subtract(begining).TotalMilliseconds);
 
 			//qvCjITx03WrvGVYEge0G9YJHqXZApuZp
 
 			Cereal cereal = new Cereal("TEST", 500);
 
-			Func<string, string, int, Grain> getLock = new Func<string, string, int, Grain>(
+			Func<string, string, int, IGrain> getLock = new Func<string, string, int, IGrain>(
 				(subject, resource, duration) =>
 				{
 					Console.WriteLine("{0} a", subject);
 
-					Grain grain = cereal.Lock(subject, resource, -1);
+					IGrain grain = cereal.Lock(subject, resource, -1);
 
 					Console.WriteLine("{0} b", subject);
 
@@ -79,7 +79,7 @@ namespace ConsoleTester
                 }
 			);
 
-			Action<Grain> release = new Action<Grain>((grain) => { cereal.Release(grain); Console.WriteLine("{0} released lock for object {1}.", grain.Subject, grain.Resource); });
+			Action<IGrain> release = new Action<IGrain>((grain) => { cereal.Release(grain); Console.WriteLine("{0} released lock for object {1}.", grain.Subject, grain.Resource); });
 			//LastAccessTimestamp = DateTime.Now;
 
 
@@ -90,7 +90,7 @@ namespace ConsoleTester
 											Console.WriteLine("Thread 1 started.");
 
 											DateTime start = DateTime.Now;
-											Grain lockA = getLock("Thread1", "A", 4000);
+											IGrain lockA = getLock("Thread1", "A", 4000);
 
 											DateTime finish = DateTime.Now;
 											TimeSpan elpsed = finish.Subtract(start);
@@ -117,7 +117,7 @@ namespace ConsoleTester
 										{
 											Console.WriteLine("Thread 2 started.");
 
-											Grain lockA = getLock("Thread2", "A", 5000);
+											IGrain lockA = getLock("Thread2", "A", 5000);
 
 											if( lockA.Equals(Grain.Empty))
 											{
