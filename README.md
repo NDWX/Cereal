@@ -11,13 +11,9 @@ While Cereal may be used to provide resource locking to applications/systems run
 ## Concept
 Cereal handles the complexities of providing resource locking service to application/system, referred to as subject from hereon, without dictating communication protocol and security implementation.
 
-A subject requests resource-lock by providing identifier of the resource and is, currently, allowed to specify the maximum amount of time the lock will be held.
+As resource locking and release require applications to communicate with Cereal over the network, implementation of Cereal is meant to be straightforward and fast and has ommited resource identifier validation and deadlock detection to avoid from being the 'thing' that takes the most time in application business logic.
 
-Cereal does not validate or provide a way to accept a way to validate resource identifier and instead leaves it to the application/system designer to decide identifier scheme of resources.
-
-As consequence, an instance of Cereal may be used to provide resource locking for one or multiple types of resources depending on requirements such as, but not limited to, computing resources and performance.
-
-It is also worth noting that while allowing a subject to specify maximum lock hold time ensures other subjects are able to request lock to a resource on lock-time elapsed, there is no guarantee that the first subject has ceased interacting with the resource and it is currently up to the application/system designer to ensure resource-lock is released when no longer required.
+It is up to application/system designer to decide identifier scheme of resources which allows an instance of Cereal to provide resource locking for one or multiple types of resources depending on requirements such as, but not limited to, computing resources and performance.
 
 ## Feedback
 
