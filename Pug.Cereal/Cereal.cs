@@ -99,13 +99,17 @@ namespace Pug.Cereal
 				
 				if(  grains.TryGetValue(grain.Identifier, out _grain) )
 				{
-					resourceLocks.Remove(grain.Resource);
-					grains.Remove(_grain.Identifier);
+					lock(_grain)
+					{
+						resourceLocks.Remove(grain.Resource);
 
-					EventWaitHandle waitHandle = ((Grain)_grain).WaitHandle;
+						EventWaitHandle waitHandle = ((Grain)_grain).WaitHandle;
 
-					waitHandle.Set();
-					waitHandle.Dispose();
+						waitHandle.Set();
+						waitHandle.Dispose();
+
+						grains.Remove(_grain.Identifier);
+					}
 #if TRACE
 					Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: {2} released by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
 #endif

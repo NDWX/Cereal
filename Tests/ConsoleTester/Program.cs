@@ -97,7 +97,7 @@ namespace ConsoleTester
 
 											Thread.Sleep(2000);
 
-											release(lockA);
+											Task.Run( () => release(lockA) ).Wait();
 
 											Thread.Sleep(2000);
 
