@@ -6,7 +6,7 @@ namespace Pug.Cereal
 	{
 		string Identifier { get; }
 		string Resource { get; }
-		string Subject { get; }
+		String Subject { get; }
 		DateTime Timestamp { get; }
 		bool Equals(IGrain other);
 	}

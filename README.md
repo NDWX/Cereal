@@ -15,6 +15,16 @@ As resource locking and release require applications to communicate with Cereal 
 
 It is up to application/system designer to decide identifier scheme of resources which allows an instance of Cereal to provide resource locking for one or multiple types of resources depending on requirements such as, but not limited to, computing resources and performance.
 
+### Deadlock Detection
+
+To prevent deadlock, Cereal keeps a graph of resource lock requested and locks held by subjects.
+
+When a requested resource is locked by a peer subject, Cereal checks if subject holding lock for a resource requested by the peer and throws exception accordingly.
+
+To ensure consistency of resource lock graph, a subject is restricted to one lock request/release call at any one time, increasing overall latency.
+
+This feature is enabled only when `DETECT_DEADLOCK` symbol is defined during build.
+
 ## Feedback
 
 Please leave your feedback either by creating new issue or email me at [Andrian@ND.id.au](mailto:Andrian@ND.id.au).

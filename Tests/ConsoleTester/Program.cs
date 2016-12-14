@@ -57,29 +57,33 @@ namespace ConsoleTester
 			Func<string, string, int, IGrain> getLock = new Func<string, string, int, IGrain>(
 				(subject, resource, duration) =>
 				{
-					Console.WriteLine("{0} a", subject);
+					Console.WriteLine("{2}: {0} requesting lock for object {1}.", subject, resource, DateTime.Now.ToString("o"));
 
 					IGrain grain = cereal.Lock(subject, resource, -1);
 
-					Console.WriteLine("{0} b", subject);
-
 					if (!grain.Equals(Grain.Empty))
 					{
-						Console.WriteLine("{0} OBTAINED lock for object {1}.", subject, resource);
+						Console.WriteLine("{2}: {0} OBTAINED lock for object {1}.", subject, resource, DateTime.Now.ToString("o"));
 					}
 					else
 					{
-						Console.WriteLine("{0} UNABLE to obtain lock for object {1}.", subject, resource);
+						Console.WriteLine("{2}: {0} UNABLE to obtain lock for object {1}.", subject, resource, DateTime.Now.ToString("o"));
 					}
-
-					Console.WriteLine("{0} c", subject);
-
-
+					
 					return grain;
                 }
 			);
 
-			Action<IGrain> release = new Action<IGrain>((grain) => { cereal.Release(grain); Console.WriteLine("{0} released lock for object {1}.", grain.Subject, grain.Resource); });
+			Action<IGrain> release = new Action<IGrain>(
+				(grain) =>
+				{
+					Console.WriteLine("{2}: {0} releasing lock for object {1}.", grain.Subject, grain.Resource, DateTime.Now.ToString("o"));
+
+					cereal.Release(grain); 
+
+					Console.WriteLine("{2}: {0} released lock for object {1}.", grain.Subject, grain.Resource, DateTime.Now.ToString("o"));
+				}
+			);
 			//LastAccessTimestamp = DateTime.Now;
 
 
@@ -107,6 +111,8 @@ namespace ConsoleTester
 											{
 												lockA = getLock("Thread1", "A", 2000);
 											}
+
+											release(lockA);
 										}
 									)
 								);
@@ -139,9 +145,12 @@ namespace ConsoleTester
 			Thread.Sleep(250);
 			thread2.Start();
 
-			Thread.Sleep(60000);
+			thread1.Join();
+			thread2.Join();
 
-			cereal.Optimize();
+			//Thread.Sleep(60000);
+
+			//cereal.Optimize();
 
 			Console.ReadLine();
 		}

@@ -6,8 +6,19 @@ using Pug.Cereal;
 
 namespace Pug.Cereal
 {
-	public struct Grain : IEquatable<Grain>, IGrain
+	public class Grain : IEquatable<Grain>, IGrain
 	{
+#if DETECT_DEADLOCK
+		public Grain(string identifier, string subject, SubjectContext subjectContext, string resource, EventWaitHandle lockHandle)
+		{
+			this.Timestamp = DateTime.Now;
+			this.Identifier = identifier;
+			this.Subject = subject;
+			this.SubjectContext = subjectContext;
+			this.Resource = resource;
+			this.WaitHandle = lockHandle;
+		}
+#else
 		public Grain(string identifier, string subject, string resource, EventWaitHandle lockHandle)
 		{
 			this.Timestamp = DateTime.Now;
@@ -16,6 +27,7 @@ namespace Pug.Cereal
 			this.Resource = resource;
 			this.WaitHandle = lockHandle;
 		}
+#endif
 
 		public string Identifier
 		{
@@ -28,7 +40,13 @@ namespace Pug.Cereal
 			get;
 			private set;
 		}
-
+#if DETECT_DEADLOCK
+		public SubjectContext SubjectContext
+		{
+			get;
+			private set;
+		}
+#endif
 		public string Resource
 		{
 			get;
@@ -74,7 +92,11 @@ namespace Pug.Cereal
 
 		//static Grain empty = new Grain(string.Empty, string.Empty, string.Empty, 0);
 
+#if DETECT_DEADLOCK
+		static Grain empty = new Grain(string.Empty, string.Empty, null, string.Empty, null);
+#else
 		static Grain empty = new Grain(string.Empty, string.Empty, string.Empty, null);
+#endif
 
 		public static Grain Empty
 		{

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,24 +14,41 @@ namespace Pug.Cereal
 	{
 		string identifier;
 		TraceSwitch traceSwitch;
-		
-		Dictionary<string, IGrain> grains;
 
-		int defaultWaitTimeout = 500;
+		int defaultWaitTimeout;
 
+		Dictionary<string, Grain> grains;
+		Dictionary<string, Grain> resourceLocks;
 		object trimSync = new object();
-		Dictionary<string, IGrain> resourceLocks;
-
-		public Cereal(string system, int defaultWaitTimeout)
+#if DETECT_DEADLOCK
+		Dictionary<string, SubjectContext> subjectContexts;
+#endif
+		public Cereal(string system, int defaultWaitTimeout = 500)
 		{
 			this.identifier = system;
 
 			traceSwitch = new TraceSwitch(string.Format("Pug.Cereal.{1}", DateTime.Now.ToString("o"), system), string.Format("Pug Cereal for {0}", system));
 			
-			grains = new Dictionary<string, IGrain>();
-			resourceLocks = new Dictionary<string, IGrain>();
+			grains = new Dictionary<string, Grain>();
+
+			resourceLocks = new Dictionary<string, Grain>();
+#if DETECT_DEADLOCK
+			subjectContexts = new Dictionary<string, SubjectContext>();
+#endif
 			
 			this.defaultWaitTimeout = defaultWaitTimeout;
+		}
+
+		public bool HasDeadlockDetection
+		{
+			get
+			{
+#if DETECT_DEADLOCK
+				return true;
+#else
+				return false;
+#endif
+			}
 		}
 
 		/// <summary>
@@ -42,15 +60,62 @@ namespace Pug.Cereal
 		/// <returns></returns>
 		public IGrain Lock(string subject, string resource, int timeout = 0)
 		{
-			IGrain grain = null;
+			Grain grain = null;
+#if DETECT_DEADLOCK
+			SubjectContext context = null;
 
-			if ( resourceLocks.ContainsKey(resource) && resourceLocks.TryGetValue(resource, out grain) && grain.Subject == subject)
+			EventWaitHandle subjectWaitHandle = new EventWaitHandle(true, EventResetMode.AutoReset, string.Format("{0}/{1}", identifier, subject));
+
+			if (!subjectWaitHandle.WaitOne(timeout))
 			{
-#if TRACE
-				Trace.WriteLineIf(traceSwitch.TraceWarning, string.Format("{0} {1}: Found existing lock for {2} held by subject {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+				subjectWaitHandle.Dispose();
+				return null;
+			}
 #endif
-				return grain;
-			}			
+			// find out if resource is already locked by subject
+			if ( resourceLocks.TryGetValue(resource, out grain) )
+			{
+				if (grain.Subject == subject ) // if resource lock is currently locked by subject
+				{ // return the same Grain
+#if DETECT_DEADLOCK
+					subjectWaitHandle.Set();
+					subjectWaitHandle.Dispose();
+#endif
+#if TRACE
+					Trace.WriteLineIf(traceSwitch.TraceWarning, string.Format("{0} {1}: Found existing lock for {2} held by subject {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
+#endif
+					return grain;
+				}
+#if DETECT_DEADLOCK
+				else // otherwise check for possible deadlock
+				{
+					// obtain context of (peer) subject currently locking resource
+					SubjectContext peerContext = grain.SubjectContext;
+
+					// if peer is waiting for another resource, check if that resource is being locked by current subject
+					if ( peerContext.IsWaitingForResource )
+					{
+						// if subject is locking resource wanted by peer
+						if (subjectContexts.TryGetValue(subject, out context) && peerContext.IsWaitingFor(context.HeldResources)) 
+						{
+							subjectWaitHandle.Set();
+							subjectWaitHandle.Dispose();
+							throw new Deadlocked();
+						}
+					}
+				}
+#endif
+			}
+#if DETECT_DEADLOCK
+			// Get/register subject context if none has been acquired
+			if ( context == null && !subjectContexts.TryGetValue(subject, out context))
+			{
+				context = new SubjectContext(subject);
+				subjectContexts.Add(subject, context);
+			}
+
+			context.WaitingFor(resource);
+#endif
 #if TRACE
 			Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Obtaining lock for {2} on behalf of {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
 #endif
@@ -66,20 +131,36 @@ namespace Pug.Cereal
 #if TRACE
 				Trace.WriteLineIf(traceSwitch.TraceVerbose, string.Format("{0} {1}: Obtained lock for {2} on behalf of {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
 #endif
+#if DETECT_DEADLOCK
+				context.WaitSuccessful();
+
+				grain = new Grain(string.Format("{0}:{1}/{2}", DateTime.Now.ToString("o"), resource, Guid.NewGuid().ToString()), subject, context, resource, waitHandle);
+#else
 				grain = new Grain(string.Format("{0}:{1}/{2}", DateTime.Now.ToString("o"), resource, Guid.NewGuid().ToString()), subject, resource, waitHandle);
-				grains[grain.Identifier] = grain;
+#endif
 				resourceLocks[resource] = grain;
+				grains[grain.Identifier] = grain;
 			}
 			else
 			{
+				// if resource locked is not acquired, dispose of waitHandle
 #if TRACE
 				Trace.WriteLineIf(traceSwitch.TraceWarning, string.Format("{0} {1}: Failed obtaining lock for {2} on behalf of {3}, probably due to timeout.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, resource, subject), string.Empty);
 #endif
 				waitHandle.Dispose();
+#if DETECT_DEADLOCK
+				// Deregister subject context if not other resources are locked by subject
+				if ( context.HeldResources.Count == 0)
+					subjectContexts.Remove(subject);
+				else
+					context.WaitTimeout();
 
-				grain = Grain.Empty;
+#endif
 			}
-
+#if DETECT_DEADLOCK
+			subjectWaitHandle.Set();
+			subjectWaitHandle.Dispose();
+#endif
 			return grain;
 		}
 
@@ -92,10 +173,9 @@ namespace Pug.Cereal
 #if TRACE
 			Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: Trying to release {2} locked by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
 #endif
-
 			if (grains.ContainsKey(grain.Identifier))
 			{
-				IGrain _grain = null;
+				Grain _grain = null;
 				
 				if(  grains.TryGetValue(grain.Identifier, out _grain) )
 				{
@@ -109,6 +189,32 @@ namespace Pug.Cereal
 						waitHandle.Dispose();
 
 						grains.Remove(_grain.Identifier);
+#if DETECT_DEADLOCK
+						SubjectContext context = null;
+
+						if( !subjectContexts.TryGetValue(grain.Subject, out context) )
+						{
+							// todo: throw exception or log error
+						}
+
+						context.Released(grain.Resource);
+
+						EventWaitHandle subjectWaitHandle = new EventWaitHandle(true, EventResetMode.AutoReset, string.Format("{0}/{1}", identifier, grain.Subject));
+
+						if (subjectWaitHandle.WaitOne())
+						{
+							if (context.HeldResources.Count == 0)
+								subjectContexts.Remove(grain.Subject);
+
+							subjectWaitHandle.Set();
+							subjectWaitHandle.Dispose();
+						}
+						else
+						{
+							subjectWaitHandle.Dispose();
+							// todo: throw exception
+						}
+#endif
 					}
 #if TRACE
 					Trace.WriteLineIf(traceSwitch.TraceInfo, string.Format("{0} {1}: {2} released by {3}.", DateTime.Now.ToString("o"), Thread.CurrentThread.ManagedThreadId, grain.Resource, grain.Subject), string.Empty);
@@ -128,8 +234,7 @@ namespace Pug.Cereal
 			}
 #endif
 		}
-
-
+		
 		/// <summary>
 		/// Optimize server by trimming resource list by removing least recently locked resources.
 		/// </summary>
