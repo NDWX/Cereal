@@ -35,7 +35,7 @@
     <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Deadlocked.cs" />
+    <Compile Include="PossibleDeadlock.cs" />
     <Compile Include="ICereal.cs" />
     <Compile Include="IGrain.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -16,12 +16,14 @@ namespace UnitTests
 		[OneTimeSetUp]
 		public void Setup()
 		{
-			cereal = new Cereal("Test");
 		}
 
 		[Test]
+		[Order(100)]
 		public void StandardTest()
 		{
+			cereal = new Cereal("Test");
+
 			Func<string, string, int, IGrain> getLock = new Func<string, string, int, IGrain>(
 				(subject, resource, duration) =>
 				{
@@ -112,9 +114,59 @@ namespace UnitTests
 			Assert.IsTrue(second.IsCompleted && !second.IsFaulted);
 		}
 
-		[Test]
+		[Test(Description = "PossibleDeadlock should not occur if lock function is called with a finite timeout.")]
+		[Order(200)]
+		public void DeadlockDetectionNegativeTriggerTest()
+		{
+			cereal = new Cereal("Test");
+
+			if (!cereal.HasDeadlockDetection)
+			{
+				Assert.Pass("Deadlock detection not available.");
+				return;
+			}
+
+			IGrain firstAGrain = cereal.Lock("first", "A");
+
+			Assert.NotNull(firstAGrain);
+			Assert.AreNotEqual(firstAGrain, Grain.Empty);
+
+			IGrain secondBGrain = cereal.Lock("second", "B");
+
+			Assert.NotNull(secondBGrain);
+			Assert.AreNotEqual(secondBGrain, Grain.Empty);
+
+			Task<IGrain> firstBGrainLock = Task.Run<IGrain>(() => cereal.Lock("first", "B"));
+
+			Assert.DoesNotThrowAsync(
+				new AsyncTestDelegate(
+					() =>
+					{
+						return Task.Run(
+							() => cereal.Lock("second", "A", 0)
+						);
+					}
+
+				)
+			);
+
+			cereal.Release(secondBGrain);
+
+			firstBGrainLock.Wait();
+
+			Assert.IsTrue(firstBGrainLock.IsCompleted && !firstBGrainLock.IsFaulted);
+			Assert.IsTrue(firstBGrainLock.Result != null);
+
+			cereal.Release(firstAGrain);
+			cereal.Release(firstBGrainLock.Result);
+		}
+
+		[Test(Description = "PossibleDeadlock should occur if lock function is called with infinite timeout.")]
+		[Order(300)]
 		public void DeadlockDetectionTest()
 		{
+			cereal = new Cereal("Test");
+
 			if (!cereal.HasDeadlockDetection )
 			{
 				Assert.Pass("Deadlock detection not available.");
@@ -131,22 +183,22 @@ namespace UnitTests
 			Assert.NotNull(secondBGrain);
 			Assert.AreNotEqual(secondBGrain, Grain.Empty);
 			
-			Task<IGrain> firstBGrainLock = Task.Run<IGrain>(() => cereal.Lock("first", "B", 0));
+			Task<IGrain> firstBGrainLock = Task.Run<IGrain>(() => cereal.Lock("first", "B"));
 
-			Assert.Throws(typeof(Deadlocked), new TestDelegate(() => cereal.Lock("second", "A")));
+			//Assert.Throws(typeof(PossibleDeadlock), new TestDelegate(() => cereal.Lock("second", "A")));
 
-			//Assert.ThrowsAsync(
-			//	typeof(Deadlocked), 
-			//	new AsyncTestDelegate(
-			//		() => 
-			//		{
-			//			return Task.Run(
-			//				() => cereal.Lock("second", "A")
-			//			);
-			//		}
+			Assert.ThrowsAsync(
+				typeof(PossibleDeadlock),
+				new AsyncTestDelegate(
+					() =>
+					{
+						return Task.Run(
+							() => cereal.Lock("second", "A")
+						);
+					}
 
-			//	)					
-			//);
+				)
+			);
 
 			cereal.Release(secondBGrain);
 
