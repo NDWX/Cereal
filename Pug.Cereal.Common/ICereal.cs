@@ -2,10 +2,15 @@
 
 namespace Pug.Cereal
 {
-	public interface ICereal
+	public interface ICereal : IDisposable
 	{
-		Grain Lock(string subject, string resource, int desiredDuration, int timeout = 0);
+		bool HasDeadlockDetection
+		{
+			get;
+		}
 
-		void Release(Grain grain);
+		IGrain Lock(string subject, string resource, int timeout = -1);
+
+		void Release(IGrain grain);
 	}
 }
